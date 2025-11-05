@@ -75,14 +75,16 @@ const mockPosts = [
   }
 ];
 
-const platformIcons = {
+type PlatformType = 'instagram' | 'twitter' | 'linkedin' | 'facebook';
+
+const platformIcons: Record<PlatformType, any> = {
   instagram: Instagram,
   twitter: Twitter,
   linkedin: Linkedin,
   facebook: Facebook,
 };
 
-const platformColors = {
+const platformColors: Record<PlatformType, string> = {
   instagram: 'from-pink-500 to-purple-500',
   twitter: 'from-blue-400 to-blue-600',
   linkedin: 'from-blue-600 to-blue-800',
@@ -154,17 +156,20 @@ export default function ContentPage() {
                 Select Platforms
               </label>
               <div className="flex flex-wrap gap-3">
-                {Object.entries(platformIcons).map(([platform, Icon]) => (
-                  <button
-                    key={platform}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg glass-button hover:bg-white/20 transition-colors`}
-                  >
-                    <div className={`w-5 h-5 rounded bg-gradient-to-r ${platformColors[platform]} flex items-center justify-center`}>
-                      <Icon className="w-3 h-3 text-white" />
-                    </div>
-                    <span className="text-white capitalize">{platform}</span>
-                  </button>
-                ))}
+                {(Object.keys(platformIcons) as PlatformType[]).map((platform) => {
+                  const Icon = platformIcons[platform];
+                  return (
+                    <button
+                      key={platform}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-lg glass-button hover:bg-white/20 transition-colors`}
+                    >
+                      <div className={`w-5 h-5 rounded bg-gradient-to-r ${platformColors[platform]} flex items-center justify-center`}>
+                        <Icon className="w-3 h-3 text-white" />
+                      </div>
+                      <span className="text-white capitalize">{platform}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -262,11 +267,12 @@ export default function ContentPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         {post.platforms.map((platform) => {
-                          const Icon = platformIcons[platform];
+                          const platformKey = platform as PlatformType;
+                          const Icon = platformIcons[platformKey];
                           return (
                             <div
                               key={platform}
-                              className={`w-6 h-6 rounded bg-gradient-to-r ${platformColors[platform]} flex items-center justify-center`}
+                              className={`w-6 h-6 rounded bg-gradient-to-r ${platformColors[platformKey]} flex items-center justify-center`}
                             >
                               <Icon className="w-3 h-3 text-white" />
                             </div>

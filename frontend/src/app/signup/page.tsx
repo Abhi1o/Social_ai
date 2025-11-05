@@ -116,18 +116,18 @@ export default function SignupPage() {
             <CardContent className="space-y-6">
               {/* Social Signup Buttons */}
               <div className="space-y-3">
-                <Button 
-                  variant="secondary" 
+                <Button
+                  variant="secondary"
                   className="w-full justify-start"
-                  onClick={() => toast.info('Social signup coming soon!')}
+                  onClick={() => toast('Social signup coming soon!')}
                 >
                   <Chrome className="w-4 h-4 mr-3" />
                   Continue with Google
                 </Button>
-                <Button 
-                  variant="secondary" 
+                <Button
+                  variant="secondary"
                   className="w-full justify-start"
-                  onClick={() => toast.info('Social signup coming soon!')}
+                  onClick={() => toast('Social signup coming soon!')}
                 >
                   <Apple className="w-4 h-4 mr-3" />
                   Continue with Apple

@@ -157,9 +157,9 @@ export default function DashboardPage() {
               </CardHeader>
               
               <CardContent>
-                {widget.id === 'ai-insights' && widget.data && (
+                {widget.id === 'ai-insights' && widget.data && 'insights' in widget.data && (
                   <div className="space-y-3">
-                    {widget.data.insights.map((insight, i) => (
+                    {widget.data.insights?.map((insight, i) => (
                       <div key={i} className="flex items-start space-x-2">
                         <Sparkles className="w-4 h-4 text-purple-400 mt-0.5 flex-shrink-0" />
                         <p className="text-sm text-gray-300">{insight}</p>
@@ -168,9 +168,9 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {widget.id === 'performance' && widget.data && (
+                {widget.id === 'performance' && widget.data && 'metrics' in widget.data && (
                   <div className="space-y-4">
-                    {widget.data.metrics.map((metric, i) => (
+                    {widget.data.metrics?.map((metric, i) => (
                       <div key={i} className="flex items-center justify-between">
                         <span className="text-sm text-gray-400">{metric.label}</span>
                         <div className="flex items-center space-x-2">
@@ -197,9 +197,9 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {widget.id === 'schedule' && widget.data && (
+                {widget.id === 'schedule' && widget.data && 'posts' in widget.data && (
                   <div className="space-y-3">
-                    {widget.data.posts.map((post, i) => (
+                    {widget.data.posts?.map((post, i) => (
                       <div key={i} className="flex items-center space-x-3 p-2 rounded-lg bg-white/5">
                         <div className="text-xs text-purple-400 font-medium">{post.time}</div>
                         <Badge variant="glass" className="text-xs">{post.platform}</Badge>
@@ -209,9 +209,9 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {widget.id === 'inbox' && widget.data && (
+                {widget.id === 'inbox' && widget.data && 'messages' in widget.data && (
                   <div className="space-y-3">
-                    {widget.data.messages.map((message, i) => (
+                    {widget.data.messages?.map((message, i) => (
                       <div key={i} className="p-2 rounded-lg bg-white/5">
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center space-x-2">
@@ -226,9 +226,9 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {widget.id === 'agents' && widget.data && (
+                {widget.id === 'agents' && widget.data && 'agents' in widget.data && (
                   <div className="space-y-3">
-                    {widget.data.agents.map((agent, i) => (
+                    {widget.data.agents?.map((agent, i) => (
                       <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-white/5">
                         <div>
                           <p className="text-sm text-white font-medium">{agent.name}</p>

@@ -102,26 +102,26 @@ export default function LoginPage() {
             <CardContent className="space-y-6">
               {/* Social Login Buttons */}
               <div className="space-y-3">
-                <Button 
-                  variant="secondary" 
+                <Button
+                  variant="secondary"
                   className="w-full justify-start"
-                  onClick={() => toast.info('Social login coming soon!')}
+                  onClick={() => toast('Social login coming soon!')}
                 >
                   <Chrome className="w-4 h-4 mr-3" />
                   Continue with Google
                 </Button>
-                <Button 
-                  variant="secondary" 
+                <Button
+                  variant="secondary"
                   className="w-full justify-start"
-                  onClick={() => toast.info('Social login coming soon!')}
+                  onClick={() => toast('Social login coming soon!')}
                 >
                   <Apple className="w-4 h-4 mr-3" />
                   Continue with Apple
                 </Button>
-                <Button 
-                  variant="secondary" 
+                <Button
+                  variant="secondary"
                   className="w-full justify-start"
-                  onClick={() => toast.info('Social login coming soon!')}
+                  onClick={() => toast('Social login coming soon!')}
                 >
                   <Github className="w-4 h-4 mr-3" />
                   Continue with GitHub
