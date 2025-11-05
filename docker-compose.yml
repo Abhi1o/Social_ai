@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai-social-postgres
+    environment:
+      POSTGRES_DB: ai_social_platform
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - ai-social-network
+
+  # Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: ai-social-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ai-social-network
+
+  # Application (for production)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-social-app
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: password
+      DB_NAME: ai_social_platform
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: your-production-jwt-secret
+    ports:
+      - "3001:3001"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - ai-social-network
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  ai-social-network:
+    driver: bridge
