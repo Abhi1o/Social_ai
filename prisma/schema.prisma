@@ -84,6 +84,13 @@ model Workspace {
   mediaAssets    MediaAsset[]
   conversations  Conversation[]
   workflows      Workflow[]
+  brandVoices    BrandVoice[]
+  reportTemplates ReportTemplate[]
+  competitors    Competitor[]
+  listeningQueries ListeningQuery[]
+  influencers    Influencer[]
+  savedReplies   SavedReply[]
+  slaConfigs     SLAConfig[]
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -393,6 +400,9 @@ model Message {
   sentiment      Float? // -1 to 1
   aiGenerated    Boolean @default(false)
   
+  // Template tracking
+  templateId String? // If message was created from a template
+  
   metadata Json?
   
   createdAt DateTime @default(now())
@@ -404,6 +414,141 @@ model Message {
 enum MessageDirection {
   INBOUND
   OUTBOUND
+}
+
+// ============================================
+// Response Management
+// ============================================
+
+model SavedReply {
+  id          String @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  name        String
+  content     String
+  category    String? // e.g., "greeting", "support", "sales"
+  
+  // Template variables (e.g., {{name}}, {{product}})
+  variables   String[]
+  
+  // Usage tracking
+  usageCount  Int @default(0)
+  lastUsedAt  DateTime?
+  
+  // Metadata
+  tags        String[]
+  isActive    Boolean @default(true)
+  
+  createdBy   String // User ID who created the template
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([workspaceId])
+  @@index([category])
+  @@index([isActive])
+  @@map("saved_replies")
+}
+
+model ConversationHistory {
+  id             String @id @default(uuid())
+  conversationId String
+  
+  // Track status changes
+  field          String // e.g., "status", "priority", "assignedTo"
+  oldValue       String?
+  newValue       String?
+  
+  changedBy      String // User ID
+  changedAt      DateTime @default(now())
+  
+  notes          String?
+  
+  @@index([conversationId])
+  @@index([changedAt])
+  @@map("conversation_history")
+}
+
+model SLAConfig {
+  id          String @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String?
+  
+  // SLA rules
+  priority    Priority // Which priority this SLA applies to
+  platform    Platform? // Optional: specific platform
+  type        ConversationType? // Optional: specific conversation type
+  
+  // Time limits (in minutes)
+  firstResponseTime Int // Time to first response
+  resolutionTime    Int // Time to resolution
+  
+  // Business hours
+  businessHoursOnly Boolean @default(false)
+  businessHours     Json? // { start: "09:00", end: "17:00", days: ["mon", "tue", ...] }
+  timezone          String @default("UTC")
+  
+  // Escalation
+  escalationEnabled Boolean @default(false)
+  escalationTime    Int? // Minutes before escalation
+  escalateTo        String[] // User IDs to escalate to
+  
+  isActive    Boolean @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([workspaceId])
+  @@index([priority])
+  @@index([isActive])
+  @@map("sla_configs")
+}
+
+model SLATracking {
+  id             String @id @default(uuid())
+  conversationId String
+  
+  slaConfigId    String
+  
+  // Tracking timestamps
+  startedAt      DateTime @default(now())
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  
+  // SLA status
+  firstResponseStatus SLAStatus @default(PENDING)
+  resolutionStatus    SLAStatus @default(PENDING)
+  
+  // Breach tracking
+  firstResponseBreached Boolean @default(false)
+  resolutionBreached    Boolean @default(false)
+  
+  // Time calculations (in minutes)
+  firstResponseTime Int?
+  resolutionTime    Int?
+  
+  // Escalation
+  escalated      Boolean @default(false)
+  escalatedAt    DateTime?
+  escalatedTo    String[] // User IDs
+  
+  metadata       Json?
+  
+  @@index([conversationId])
+  @@index([slaConfigId])
+  @@index([firstResponseStatus])
+  @@index([resolutionStatus])
+  @@map("sla_tracking")
+}
+
+enum SLAStatus {
+  PENDING
+  MET
+  BREACHED
+  PAUSED
 }
 
 // ============================================
@@ -458,4 +603,891 @@ enum ApprovalStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+// ============================================
+// AI & Brand Voice
+// ============================================
+
+model BrandVoice {
+  id          String @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String?
+  tone        String // e.g., "professional", "casual", "friendly"
+  
+  vocabulary  String[] // Preferred words and phrases
+  avoidWords  String[] // Words to avoid
+  examples    String[] // Example content in brand voice
+  guidelines  String?  // Additional guidelines
+  
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+  
+  // Training metadata
+  trainingData Json? // Stores analyzed patterns from examples
+  consistencyScore Float? // Overall consistency score
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([workspaceId])
+  @@index([isDefault])
+  @@map("brand_voices")
+}
+
+// ============================================
+// Custom Report Builder
+// ============================================
+
+model ReportTemplate {
+  id          String @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String?
+  widgets     Json // Array of WidgetConfig
+  branding    Json? // BrandingConfig
+  tags        String[]
+  isPublic    Boolean @default(false)
+  
+  // Relations
+  generatedReports GeneratedReport[]
+  scheduledReports ScheduledReport[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([workspaceId])
+  @@index([isPublic])
+  @@map("report_templates")
+}
+
+model GeneratedReport {
+  id         String @id @default(uuid())
+  templateId String
+  template   ReportTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  workspaceId String
+  
+  name       String
+  format     ReportFormat
+  startDate  DateTime
+  endDate    DateTime
+  
+  fileUrl    String? // URL to generated file
+  fileSize   Int? // File size in bytes
+  
+  platforms  String[]
+  accountIds String[]
+  
+  metadata   Json? // Additional metadata about the report
+  
+  generatedBy String // User ID who generated the report
+  
+  createdAt DateTime @default(now())
+  
+  @@index([templateId])
+  @@index([workspaceId])
+  @@index([createdAt])
+  @@map("generated_reports")
+}
+
+enum ReportFormat {
+  PDF
+  CSV
+  EXCEL
+}
+
+model ScheduledReport {
+  id         String @id @default(uuid())
+  templateId String
+  template   ReportTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  workspaceId String
+  
+  frequency  ReportFrequency
+  format     ReportFormat
+  recipients String[] // Email addresses
+  
+  // Scheduling configuration
+  dayOfWeek  String? // For weekly: 'monday', 'tuesday', etc.
+  dayOfMonth String? // For monthly: '1', '15', 'last', etc.
+  time       String? // Time in HH:mm format
+  
+  platforms  String[]
+  accountIds String[]
+  
+  isActive   Boolean @default(true)
+  
+  lastRunAt  DateTime?
+  nextRunAt  DateTime?
+  
+  createdBy  String // User ID who created the schedule
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([templateId])
+  @@index([workspaceId])
+  @@index([isActive])
+  @@index([nextRunAt])
+  @@map("scheduled_reports")
+}
+
+enum ReportFrequency {
+  ONCE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+// ============================================
+// Competitive Benchmarking
+// ============================================
+
+model Competitor {
+  id          String @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String?
+  industry    String?
+  
+  // Social accounts to track
+  accounts    CompetitorAccount[]
+  
+  isActive    Boolean @default(true)
+  tags        String[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([workspaceId])
+  @@index([isActive])
+  @@map("competitors")
+}
+
+model CompetitorAccount {
+  id           String @id @default(uuid())
+  competitorId String
+  competitor   Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  
+  platform         Platform
+  platformAccountId String
+  username         String
+  displayName      String
+  avatar           String?
+  
+  isActive Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([competitorId, platform, platformAccountId])
+  @@index([competitorId])
+  @@map("competitor_accounts")
+}
+
+// ============================================
+// Social Listening
+// ============================================
+
+model ListeningQuery {
+  id          String @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String?
+  
+  // Query configuration
+  keywords    String[] // Keywords to monitor
+  query       String   // Boolean search query
+  platforms   Platform[] // Platforms to monitor
+  languages   String[] // ISO language codes (e.g., 'en', 'es', 'fr')
+  locations   String[] // Geographic locations
+  
+  // Filters
+  excludeKeywords String[] // Keywords to exclude
+  includeRetweets Boolean @default(true)
+  minFollowers    Int? // Minimum follower count
+  
+  // Alert configuration
+  alertsEnabled   Boolean @default(false)
+  alertThreshold  Int? // Number of mentions to trigger alert
+  alertRecipients String[] // Email addresses for alerts
+  
+  isActive Boolean @default(true)
+  
+  // Relations
+  mentions ListeningMention[]
+  alerts   ListeningAlert[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([workspaceId])
+  @@index([isActive])
+  @@map("listening_queries")
+}
+
+model ListeningMention {
+  id      String @id @default(uuid())
+  queryId String
+  query   ListeningQuery @relation(fields: [queryId], references: [id], onDelete: Cascade)
+  
+  workspaceId String
+  
+  platform Platform
+  
+  // Author information
+  authorId       String
+  authorUsername String
+  authorName     String
+  authorAvatar   String?
+  authorFollowers Int?
+  
+  // Content
+  content        String
+  url            String
+  platformPostId String
+  
+  // Engagement metrics
+  likes      Int @default(0)
+  comments   Int @default(0)
+  shares     Int @default(0)
+  reach      Int @default(0)
+  
+  // Analysis
+  sentiment      Sentiment @default(NEUTRAL)
+  sentimentScore Float? // -1 to 1
+  language       String? // Detected language
+  location       String? // Geographic location
+  
+  isInfluencer Boolean @default(false)
+  tags         String[]
+  
+  // Metadata
+  metadata Json?
+  
+  publishedAt DateTime
+  fetchedAt   DateTime @default(now())
+  
+  @@index([queryId])
+  @@index([workspaceId])
+  @@index([platform])
+  @@index([sentiment])
+  @@index([publishedAt])
+  @@unique([platform, platformPostId])
+  @@map("listening_mentions")
+}
+
+model ListeningAlert {
+  id      String @id @default(uuid())
+  queryId String
+  query   ListeningQuery @relation(fields: [queryId], references: [id], onDelete: Cascade)
+  
+  workspaceId String
+  
+  type        AlertType
+  severity    AlertSeverity
+  title       String
+  description String
+  
+  // Alert data
+  mentionCount Int?
+  sentimentShift Float? // Change in sentiment
+  metadata     Json?
+  
+  // Status
+  status      AlertStatus @default(ACTIVE)
+  acknowledgedBy String? // User ID
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  
+  createdAt DateTime @default(now())
+  
+  @@index([queryId])
+  @@index([workspaceId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("listening_alerts")
+}
+
+enum AlertType {
+  VOLUME_SPIKE
+  SENTIMENT_SHIFT
+  CRISIS_DETECTED
+  INFLUENCER_MENTION
+  KEYWORD_TREND
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+}
+
+// ============================================
+// Influencer Discovery & Management
+// ============================================
+
+model Influencer {
+  id          String @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  // Basic information
+  name        String
+  bio         String?
+  avatar      String?
+  email       String?
+  website     String?
+  
+  // Social accounts
+  accounts    InfluencerAccount[]
+  
+  // Categorization
+  niche       String[] // e.g., ["fashion", "lifestyle", "beauty"]
+  tags        String[]
+  
+  // Scoring
+  overallScore      Float? // 0-100 composite score
+  authenticityScore Float? // 0-100 audience authenticity
+  engagementScore   Float? // 0-100 engagement quality
+  reachScore        Float? // 0-100 reach potential
+  
+  // Aggregated metrics (calculated from accounts)
+  totalFollowers    Int @default(0)
+  avgEngagementRate Float @default(0)
+  totalReach        Int @default(0)
+  
+  // Relationship status
+  status InfluencerStatus @default(DISCOVERED)
+  
+  // Relations
+  collaborations InfluencerCollaboration[]
+  notes          InfluencerNote[]
+  
+  // Metadata
+  metadata Json? // Additional platform-specific data
+  
+  lastAnalyzedAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([workspaceId])
+  @@index([status])
+  @@index([overallScore])
+  @@map("influencers")
+}
+
+enum InfluencerStatus {
+  DISCOVERED    // Found but not contacted
+  CONTACTED     // Reached out
+  NEGOTIATING   // In discussion
+  ACTIVE        // Currently working together
+  INACTIVE      // Past collaboration
+  BLACKLISTED   // Do not work with
+}
+
+model InfluencerAccount {
+  id           String @id @default(uuid())
+  influencerId String
+  influencer   Influencer @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  
+  platform         Platform
+  platformAccountId String
+  username         String
+  displayName      String
+  avatar           String?
+  url              String?
+  
+  // Metrics
+  followers        Int @default(0)
+  following        Int @default(0)
+  posts            Int @default(0)
+  engagementRate   Float @default(0) // Percentage
+  avgLikes         Float @default(0)
+  avgComments      Float @default(0)
+  avgShares        Float @default(0)
+  
+  // Authenticity metrics
+  authenticityScore Float? // 0-100
+  suspiciousFollowers Int @default(0)
+  realFollowers     Int @default(0)
+  
+  // Audience demographics
+  audienceDemographics Json? // Age, gender, location breakdown
+  audienceInterests    String[] // Top interests of followers
+  
+  // Activity patterns
+  postingFrequency String? // e.g., "3-5 posts/week"
+  bestPostingTimes String[] // e.g., ["Mon 9am", "Wed 3pm"]
+  
+  isVerified Boolean @default(false)
+  isActive   Boolean @default(true)
+  
+  lastSyncedAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@unique([influencerId, platform, platformAccountId])
+  @@index([influencerId])
+  @@index([platform])
+  @@map("influencer_accounts")
+}
+
+model InfluencerCollaboration {
+  id           String @id @default(uuid())
+  influencerId String
+  influencer   Influencer @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  
+  workspaceId String
+  
+  campaignId String?
+  campaign   InfluencerCampaign? @relation(fields: [campaignId], references: [id])
+  
+  type        CollaborationType
+  status      CollaborationStatus @default(PROPOSED)
+  
+  // Terms
+  deliverables String[] // e.g., ["1 Instagram post", "3 Stories"]
+  compensation Float? // Amount in USD
+  startDate    DateTime?
+  endDate      DateTime?
+  
+  // Contract
+  contractUrl  String?
+  contractSigned Boolean @default(false)
+  
+  // Performance
+  actualDeliverables String[] // What was actually delivered
+  performanceMetrics Json? // Engagement, reach, conversions
+  
+  notes String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([influencerId])
+  @@index([campaignId])
+  @@index([status])
+  @@map("influencer_collaborations")
+}
+
+enum CollaborationType {
+  SPONSORED_POST
+  PRODUCT_REVIEW
+  BRAND_AMBASSADOR
+  AFFILIATE
+  EVENT_APPEARANCE
+  CONTENT_CREATION
+  TAKEOVER
+}
+
+enum CollaborationStatus {
+  PROPOSED
+  NEGOTIATING
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model InfluencerCampaign {
+  id          String @id @default(uuid())
+  workspaceId String
+  
+  name        String
+  description String?
+  
+  // Campaign details
+  objectives  String[] // e.g., ["brand awareness", "conversions"]
+  budget      Float?
+  startDate   DateTime
+  endDate     DateTime
+  
+  // Target criteria
+  targetNiches      String[]
+  targetPlatforms   Platform[]
+  minFollowers      Int?
+  maxFollowers      Int?
+  minEngagementRate Float?
+  
+  status CampaignStatus @default(DRAFT)
+  
+  // Relations
+  collaborations InfluencerCollaboration[]
+  
+  // Performance
+  totalReach       Int @default(0)
+  totalEngagement  Int @default(0)
+  totalConversions Int @default(0)
+  roi              Float? // Return on investment
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([workspaceId])
+  @@index([status])
+  @@map("influencer_campaigns")
+}
+
+model InfluencerNote {
+  id           String @id @default(uuid())
+  influencerId String
+  influencer   Influencer @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  
+  authorId String // User who created the note
+  content  String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([influencerId])
+  @@map("influencer_notes")
+}
+
+// ============================================
+// Chatbot Builder
+// ============================================
+
+model Chatbot {
+  id          String @id @default(uuid())
+  workspaceId String
+  
+  name        String
+  description String?
+  
+  // Configuration
+  platforms   Platform[] // Platforms where chatbot is active
+  accountIds  String[] // Specific accounts to enable chatbot on
+  
+  // Behavior settings
+  greeting    String? // Initial greeting message
+  fallbackMessage String? // Message when no intent matches
+  
+  // NLP settings
+  confidenceThreshold Float @default(0.7) // Minimum confidence for intent matching
+  language    String @default("en") // Primary language
+  
+  // Status
+  isActive    Boolean @default(false)
+  isTraining  Boolean @default(false)
+  
+  // Relations
+  flows       ChatbotFlow[]
+  intents     ChatbotIntent[]
+  entities    ChatbotEntity[]
+  sessions    ChatbotSession[]
+  analytics   ChatbotAnalytics[]
+  
+  // Metadata
+  metadata    Json? // Additional configuration
+  
+  createdBy   String // User ID
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([workspaceId])
+  @@index([isActive])
+  @@map("chatbots")
+}
+
+model ChatbotFlow {
+  id         String @id @default(uuid())
+  chatbotId  String
+  chatbot    Chatbot @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  
+  name       String
+  description String?
+  
+  // Flow configuration
+  triggerType FlowTriggerType
+  triggerValue String? // Intent name, keyword, or condition
+  
+  // Visual designer data
+  nodes      Json // Array of flow nodes
+  edges      Json // Array of connections between nodes
+  
+  // Flow settings
+  priority   Int @default(0) // Higher priority flows are checked first
+  isActive   Boolean @default(true)
+  
+  // Relations
+  executions ChatbotFlowExecution[]
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@index([chatbotId])
+  @@index([triggerType])
+  @@index([isActive])
+  @@map("chatbot_flows")
+}
+
+enum FlowTriggerType {
+  INTENT      // Triggered by intent match
+  KEYWORD     // Triggered by keyword match
+  CONDITION   // Triggered by condition evaluation
+  MANUAL      // Manually triggered
+  FALLBACK    // Triggered when no other flow matches
+}
+
+model ChatbotIntent {
+  id         String @id @default(uuid())
+  chatbotId  String
+  chatbot    Chatbot @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  
+  name       String // e.g., "greeting", "product_inquiry", "support_request"
+  description String?
+  
+  // Training phrases
+  trainingPhrases String[] // Example user inputs
+  
+  // Response templates
+  responses  String[] // Possible bot responses
+  
+  // Entity extraction
+  requiredEntities String[] // Entity names that must be extracted
+  optionalEntities String[] // Entity names that can be extracted
+  
+  // Context
+  inputContexts  String[] // Required contexts for this intent
+  outputContexts String[] // Contexts set after this intent
+  lifespan       Int @default(5) // How many turns the context lasts
+  
+  // Settings
+  priority   Int @default(0)
+  isActive   Boolean @default(true)
+  
+  // Training status
+  isTrained  Boolean @default(false)
+  accuracy   Float? // Training accuracy score
+  
+  // Usage tracking
+  matchCount Int @default(0)
+  lastMatchedAt DateTime?
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@unique([chatbotId, name])
+  @@index([chatbotId])
+  @@index([isActive])
+  @@map("chatbot_intents")
+}
+
+model ChatbotEntity {
+  id         String @id @default(uuid())
+  chatbotId  String
+  chatbot    Chatbot @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  
+  name       String // e.g., "product_name", "email", "date"
+  description String?
+  
+  type       EntityType
+  
+  // For custom entities
+  values     Json? // Array of { value, synonyms[] }
+  
+  // For regex entities
+  pattern    String? // Regex pattern
+  
+  // Settings
+  isRequired Boolean @default(false)
+  
+  // Usage tracking
+  extractionCount Int @default(0)
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@unique([chatbotId, name])
+  @@index([chatbotId])
+  @@index([type])
+  @@map("chatbot_entities")
+}
+
+enum EntityType {
+  SYSTEM_TEXT       // Free text
+  SYSTEM_NUMBER     // Numeric value
+  SYSTEM_DATE       // Date
+  SYSTEM_TIME       // Time
+  SYSTEM_EMAIL      // Email address
+  SYSTEM_PHONE      // Phone number
+  SYSTEM_URL        // URL
+  CUSTOM_LIST       // Custom list of values
+  CUSTOM_REGEX      // Custom regex pattern
+}
+
+model ChatbotSession {
+  id             String @id @default(uuid())
+  chatbotId      String
+  chatbot        Chatbot @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  
+  conversationId String // Link to Conversation model
+  
+  // Session state
+  currentContext String[] // Active contexts
+  variables      Json @default("{}") // Session variables
+  
+  // Tracking
+  messageCount   Int @default(0)
+  intentMatches  Int @default(0)
+  fallbackCount  Int @default(0)
+  
+  // Status
+  isActive       Boolean @default(true)
+  
+  // Relations
+  interactions   ChatbotInteraction[]
+  
+  startedAt      DateTime @default(now())
+  lastActivityAt DateTime @default(now())
+  endedAt        DateTime?
+  
+  @@index([chatbotId])
+  @@index([conversationId])
+  @@index([isActive])
+  @@map("chatbot_sessions")
+}
+
+model ChatbotInteraction {
+  id        String @id @default(uuid())
+  sessionId String
+  session   ChatbotSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  // User input
+  userMessage String
+  
+  // NLP results
+  detectedIntent String? // Intent name
+  confidence     Float? // Confidence score 0-1
+  extractedEntities Json? // { entityName: value }
+  
+  // Bot response
+  botResponse String?
+  responseType ResponseType
+  
+  // Flow execution
+  flowId      String? // Which flow was executed
+  nodeId      String? // Which node generated the response
+  
+  // Metadata
+  metadata    Json?
+  
+  // Timing
+  processingTime Int? // Milliseconds
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([sessionId])
+  @@index([detectedIntent])
+  @@index([createdAt])
+  @@map("chatbot_interactions")
+}
+
+enum ResponseType {
+  TEXT          // Simple text response
+  QUICK_REPLY   // Text with quick reply buttons
+  CARD          // Rich card with image/buttons
+  CAROUSEL      // Multiple cards
+  HANDOFF       // Transfer to human agent
+  API_CALL      // Response from API integration
+  CUSTOM        // Custom response type
+}
+
+model ChatbotFlowExecution {
+  id      String @id @default(uuid())
+  flowId  String
+  flow    ChatbotFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  
+  sessionId String
+  
+  // Execution trace
+  startNode String // Starting node ID
+  endNode   String? // Ending node ID
+  path      Json // Array of node IDs traversed
+  
+  // Variables at execution
+  inputVariables  Json
+  outputVariables Json
+  
+  // Status
+  status ExecutionStatus
+  error  String? // Error message if failed
+  
+  // Timing
+  startedAt  DateTime @default(now())
+  completedAt DateTime?
+  duration   Int? // Milliseconds
+  
+  @@index([flowId])
+  @@index([sessionId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("chatbot_flow_executions")
+}
+
+enum ExecutionStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model ChatbotAnalytics {
+  id         String @id @default(uuid())
+  chatbotId  String
+  chatbot    Chatbot @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  
+  // Time period
+  date       DateTime @db.Date
+  
+  // Volume metrics
+  totalSessions      Int @default(0)
+  totalInteractions  Int @default(0)
+  totalMessages      Int @default(0)
+  
+  // Performance metrics
+  avgConfidence      Float @default(0)
+  intentMatchRate    Float @default(0) // Percentage of messages with intent match
+  fallbackRate       Float @default(0) // Percentage of fallback responses
+  handoffRate        Float @default(0) // Percentage of handoffs to human
+  
+  // Engagement metrics
+  avgSessionLength   Float @default(0) // Average messages per session
+  avgResponseTime    Float @default(0) // Average bot response time in ms
+  
+  // User satisfaction
+  satisfactionScore  Float? // If feedback is collected
+  
+  // Top intents
+  topIntents         Json? // Array of { intent, count }
+  
+  // Metadata
+  metadata           Json?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([chatbotId, date])
+  @@index([chatbotId])
+  @@index([date])
+  @@map("chatbot_analytics")
 }

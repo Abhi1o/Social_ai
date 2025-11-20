@@ -13,6 +13,10 @@ import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { Permission } from '../auth/enums/permission.enum';
+import { WorkspaceId } from '../auth/middleware/workspace-isolation.middleware';
 
 interface RequestWithUser extends Request {
   user: {
@@ -22,40 +26,50 @@ interface RequestWithUser extends Request {
   };
 }
 
+/**
+ * User Controller
+ * Demonstrates RBAC implementation with permission guards
+ * Requirements: 5.3, 5.4, 32.1
+ */
 @Controller('users')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Post()
-  create(@Body() createUserDto: CreateUserDto, @Request() req: RequestWithUser) {
+  @Permissions(Permission.TEAM_INVITE)
+  create(@Body() createUserDto: CreateUserDto, @WorkspaceId() workspaceId: string) {
     return this.userService.create({
       ...createUserDto,
-      tenantId: req.user.tenantId,
+      tenantId: workspaceId,
     });
   }
 
   @Get()
-  findAll(@Request() req: RequestWithUser) {
-    return this.userService.findAll(req.user.tenantId);
+  @Permissions(Permission.TEAM_READ)
+  findAll(@WorkspaceId() workspaceId: string) {
+    return this.userService.findAll(workspaceId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @Request() req: RequestWithUser) {
-    return this.userService.findOne(id, req.user.tenantId);
+  @Permissions(Permission.TEAM_READ)
+  findOne(@Param('id') id: string, @WorkspaceId() workspaceId: string) {
+    return this.userService.findOne(id, workspaceId);
   }
 
   @Patch(':id')
+  @Permissions(Permission.TEAM_UPDATE)
   update(
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
-    @Request() req: RequestWithUser,
+    @WorkspaceId() workspaceId: string,
   ) {
-    return this.userService.update(id, req.user.tenantId, updateUserDto);
+    return this.userService.update(id, workspaceId, updateUserDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @Request() req: RequestWithUser) {
-    return this.userService.remove(id, req.user.tenantId);
+  @Permissions(Permission.TEAM_REMOVE)
+  remove(@Param('id') id: string, @WorkspaceId() workspaceId: string) {
+    return this.userService.remove(id, workspaceId);
   }
 }

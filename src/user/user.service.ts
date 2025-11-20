@@ -97,4 +97,15 @@ export class UserService {
       relations: ['tenant'],
     });
   }
+
+  async updateRole(userId: string, role: User['role']): Promise<User> {
+    const user = await this.findById(userId);
+    
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    user.role = role;
+    return await this.userRepository.save(user);
+  }
 }
